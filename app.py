@@ -4,18 +4,35 @@ import pandas as pd
 import plotly.express as px 
 import leafmap.maplibregl as leafmap 
 
+# 檔案路徑 (使用遠端 URL)
 CITIES_CSV_URL = 'https://data.gishub.org/duckdb/cities.csv'
+
+# -----------------
+# 1. 狀態管理 (Reactive Variables)
+# -----------------
+# 用於儲存所有國家/地區的清單
 all_countries = solara.reactive([])
+# 儲存使用者在下拉選單中選擇的國家/地區代碼
 selected_country = solara.reactive("") 
+# 儲存篩選後的城市數據
 data_df = solara.reactive(pd.DataFrame()) 
 
+# ----------------------------------------------------
+# 2. 數據獲取邏輯 (使用 Solara's use_effect 實現響應式)
+# ----------------------------------------------------
+
+# A. 載入所有國家清單 (只在應用程式啟動時執行一次)
 @solara.use_effect(dependencies=[])
 def load_country_list():
     """初始化：從 CSV 載入所有不重複的國家代碼。"""
+    print("Loading country list...")
     try:
         con = duckdb.connect()
+        # 必須載入 httpfs 擴展才能讀取遠端檔案
         con.install_extension("httpfs")
         con.load_extension("httpfs")
+        
+        # 查詢所有不重複的國家代碼
         result = con.sql(f"""
             SELECT DISTINCT country 
             FROM '{CITIES_CSV_URL}'
@@ -43,10 +60,13 @@ def load_filtered_data():
     if not country_name:
         return 
 
+    print(f"Querying data for: {country_name}")
     try:
         con = duckdb.connect()
         con.install_extension("httpfs")
         con.load_extension("httpfs")
+        
+        # 查詢需要的欄位: name, country, population, latitude, longitude
         sql_query = f"""
         SELECT name, country, population, latitude, longitude
         FROM '{CITIES_CSV_URL}'
@@ -69,7 +89,7 @@ def load_filtered_data():
 
 @solara.component
 def CityMap(df: pd.DataFrame):
-    """(取代你的 create_map) 創建並顯示 Leafmap 地圖，標記城市點。"""
+    """創建並顯示 Leafmap 地圖，標記城市點 (使用您提供的設定)。"""
     
     if df.empty:
         return solara.Info("沒有城市數據可供地圖顯示。")
@@ -77,18 +97,18 @@ def CityMap(df: pd.DataFrame):
     # 使用數據的平均經緯度作為地圖中心
     center = [df['latitude'].mean(), df['longitude'].mean()]
     
-    # 使用你的 Leafmap 參數設定
     m = leafmap.Map(
         center=center, 
         zoom=4,                     
+        # 您指定的 Leafmap 參數
         add_sidebar=True,
         add_floating_sidebar=False,
         sidebar_visible=True,
         layer_manager_expanded=False,
-        height="800px", # 保持你設定的高度
+        height="800px", 
     )
     
-    # 添加底圖和繪圖工具 (你提供的功能)
+    # 添加底圖和繪圖工具
     m.add_basemap("Esri.WorldImagery", before_id=m.first_symbol_layer_id, visible=False)
     m.add_draw_control(controls=["polygon", "trash"])
 
@@ -105,26 +125,30 @@ def CityMap(df: pd.DataFrame):
 
     return m.to_solara()
 
+# ----------------------------------------------------
+# 4. 頁面佈局組件
+# ----------------------------------------------------
+
 @solara.component
 def Page():
     
     solara.Title("城市地理人口分析 (DuckDB + Solara + Leafmap)")
     
     with solara.Card(title="城市數據篩選器"):
-        # 綁定到 reactive 變數，當選單改變時，load_filtered_data 會自動運行
+        # 綁定到 reactive 變數
         solara.Select(
             label="選擇國家代碼",
             value=selected_country, 
             values=all_countries.value
         )
     
-    # 僅當有數據時才繪製地圖
+    # 僅當有數據時才繪製地圖和圖表
     if selected_country.value and not data_df.value.empty:
         
         country_code = selected_country.value
         df = data_df.value
         
-        # 標題 (使用響應式變數)
+        # 標題
         solara.Markdown("## Cities in " + country_code)
         
         # 顯示地圖
@@ -133,6 +157,21 @@ def Page():
         # 顯示數據表格 (用於確認)
         solara.Markdown(f"### 📋 數據表格 (前 {len(df)} 大城市)")
         solara.DataFrame(df)
+        
+        # 額外添加 Plotly 圖表，使應用程式更完整
+        solara.Markdown(f"### 📊 {country_code} 人口分佈 (Plotly)")
+        fig = px.bar(
+            df, 
+            x="name",               
+            y="population",         
+            color="population",     
+            title=f"{country_code} 城市人口",
+            labels={"name": "城市名稱", "population": "人口數"},
+            height=400 
+        )
+        fig.update_layout(xaxis_tickangle=-45)
+        solara.FigurePlotly(fig)
+
 
     elif selected_country.value:
          solara.Info(f"正在載入 {selected_country.value} 的數據...")
