@@ -18,10 +18,10 @@ selected_country = solara.reactive("")
 data_df = solara.reactive(pd.DataFrame()) 
 
 # ----------------------------------------------------
-# 2. 數據獲取邏輯 (請用此區塊覆蓋您檔案中對應的內容)
+# 2. 數據獲取邏輯 (修正裝飾器結構)
 # ----------------------------------------------------
 
-# A. 載入所有國家清單 (只在應用程式啟動時執行一次)
+# A. 載入所有國家清單 (單行裝飾器修正)
 @solara.use_effect(dependencies=[])
 def load_country_list():
     """初始化：從 CSV 載入所有不重複的國家代碼。"""
@@ -49,7 +49,7 @@ def load_country_list():
     except Exception as e:
         print(f"Error loading countries: {e}")
 
-# B. 根據選中的國家篩選城市數據
+# B. 根據選中的國家篩選城市數據 (單行裝飾器修正)
 @solara.use_effect(dependencies=[selected_country.value])
 def load_filtered_data():
     """當 selected_country 變數改變時，重新執行 DuckDB 查詢。"""
@@ -78,25 +78,23 @@ def load_filtered_data():
     except Exception as e:
         print(f"Error executing query: {e}")
         data_df.set(pd.DataFrame())
-        
+
 # ----------------------------------------------------
 # 3. 視覺化組件
 # ----------------------------------------------------
 
 @solara.component
 def CityMap(df: pd.DataFrame):
-    """創建並顯示 Leafmap 地圖，標記城市點 (使用您提供的設定)。"""
+    """創建並顯示 Leafmap 地圖，標記城市點。"""
     
     if df.empty:
         return solara.Info("沒有城市數據可供地圖顯示。")
 
-    # 使用數據的平均經緯度作為地圖中心
     center = [df['latitude'].mean(), df['longitude'].mean()]
     
     m = leafmap.Map(
         center=center, 
         zoom=4,                     
-        # 您指定的 Leafmap 參數
         add_sidebar=True,
         add_floating_sidebar=False,
         sidebar_visible=True,
@@ -104,11 +102,9 @@ def CityMap(df: pd.DataFrame):
         height="800px", 
     )
     
-    # 添加底圖和繪圖工具
     m.add_basemap("Esri.WorldImagery", before_id=m.first_symbol_layer_id, visible=False)
     m.add_draw_control(controls=["polygon", "trash"])
 
-    # 添加城市點標記
     m.add_points_from_xy(
         df,
         x="longitude",
@@ -131,30 +127,24 @@ def Page():
     solara.Title("城市地理人口分析 (DuckDB + Solara + Leafmap)")
     
     with solara.Card(title="城市數據篩選器"):
-        # 綁定到 reactive 變數
         solara.Select(
             label="選擇國家代碼",
             value=selected_country, 
             values=all_countries.value
         )
     
-    # 僅當有數據時才繪製地圖和圖表
     if selected_country.value and not data_df.value.empty:
         
         country_code = selected_country.value
         df = data_df.value
         
-        # 標題
         solara.Markdown("## Cities in " + country_code)
         
-        # 顯示地圖
         CityMap(df) 
         
-        # 顯示數據表格 (用於確認)
         solara.Markdown(f"### 📋 數據表格 (前 {len(df)} 大城市)")
         solara.DataFrame(df)
         
-        # 額外添加 Plotly 圖表，使應用程式更完整
         solara.Markdown(f"### 📊 {country_code} 人口分佈 (Plotly)")
         fig = px.bar(
             df, 
