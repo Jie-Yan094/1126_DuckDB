@@ -21,7 +21,6 @@ data_df = solara.reactive(pd.DataFrame())
 # 2. 數據獲取邏輯 (修正裝飾器結構)
 # ----------------------------------------------------
 
-# A. 載入所有國家清單 (單行裝飾器修正)
 @solara.use_effect(dependencies=[])
 def load_country_list():
     """初始化：從 CSV 載入所有不重複的國家代碼。"""
