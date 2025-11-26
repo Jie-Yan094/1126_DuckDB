@@ -18,7 +18,7 @@ selected_country = solara.reactive("")
 data_df = solara.reactive(pd.DataFrame()) 
 
 # ----------------------------------------------------
-# 2. 數據獲取邏輯 (使用 Solara's use_effect 實現響應式)
+# 2. 數據獲取邏輯 (請用此區塊覆蓋您檔案中對應的內容)
 # ----------------------------------------------------
 
 # A. 載入所有國家清單 (只在應用程式啟動時執行一次)
@@ -28,11 +28,9 @@ def load_country_list():
     print("Loading country list...")
     try:
         con = duckdb.connect()
-        # 必須載入 httpfs 擴展才能讀取遠端檔案
         con.install_extension("httpfs")
         con.load_extension("httpfs")
         
-        # 查詢所有不重複的國家代碼
         result = con.sql(f"""
             SELECT DISTINCT country 
             FROM '{CITIES_CSV_URL}'
@@ -42,7 +40,6 @@ def load_country_list():
         country_list = [row[0] for row in result]
         all_countries.set(country_list)
         
-        # 設定預設值
         if "USA" in country_list:
              selected_country.set("USA") 
         elif country_list:
@@ -66,7 +63,6 @@ def load_filtered_data():
         con.install_extension("httpfs")
         con.load_extension("httpfs")
         
-        # 查詢需要的欄位: name, country, population, latitude, longitude
         sql_query = f"""
         SELECT name, country, population, latitude, longitude
         FROM '{CITIES_CSV_URL}'
@@ -76,13 +72,13 @@ def load_filtered_data():
         """
         
         df_result = con.sql(sql_query).df()
-        data_df.set(df_result) # 更新響應式數據
+        data_df.set(df_result) 
         
         con.close()
     except Exception as e:
         print(f"Error executing query: {e}")
         data_df.set(pd.DataFrame())
-
+        
 # ----------------------------------------------------
 # 3. 視覺化組件
 # ----------------------------------------------------
