@@ -75,7 +75,7 @@ def load_filtered_data():
         data_df.set(pd.DataFrame())
 
 # ----------------------------------------------------
-# 3. 視覺化組件 (已修正 Leafmap add_geojson 傳參錯誤)
+# 3. 視覺化組件 (已修正 Leafmap Pydantic 驗證錯誤)
 # ----------------------------------------------------
 
 @solara.component
@@ -93,8 +93,7 @@ def CityMap(df: pd.DataFrame):
     if not df.empty:
         center = [df['latitude'].iloc[0], df['longitude'].iloc[0]]
     else:
-        # 預設中心 (例如：紐約)
-        center = [40.7, -74.0]
+        center = [40.7, -74.0] # 預設中心
     
     m = leafmap.Map(
         center=center, 
@@ -113,19 +112,16 @@ def CityMap(df: pd.DataFrame):
     
     features = []
     for index, row in df.iterrows():
-        # 確保人口是整數 (如果需要顯示)
         try:
             population = int(row["population"])
         except ValueError:
             population = None
             
-        # 創建 GeoJSON 點物件
         feature = {
             "type": "Feature",
             "geometry": {
                 "type": "Point",
-                # Leafmap/GeoJSON 使用 [lon, lat] 順序
-                "coordinates": [row["longitude"], row["latitude"]] 
+                "coordinates": [row["longitude"], row["latitude"]] # [lon, lat] 順序
             },
             "properties": {
                 "name": row["name"],
@@ -140,14 +136,10 @@ def CityMap(df: pd.DataFrame):
         "features": features
     }
 
-    # === 關鍵修正：直接傳遞 Python 字典 (geojson) ===
+    # === 關鍵修正：只傳遞 GeoJSON 字典數據，移除所有額外參數 ===
     m.add_geojson(
-        geojson, # <-- 直接傳入字典物件，不再使用 json.dumps()
-        layer_name="Cities",
-        marker_color="red",
-        marker_size=8,
-        # 設置彈出視窗內容
-        popup={"fields": ["name", "country", "population"], "aliases": ["City", "Country", "Population"]}
+        geojson 
+        # layer_name, marker_color, marker_size, popup 參數已移除
     )
 
     return m.to_solara()
