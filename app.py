@@ -75,7 +75,7 @@ def load_filtered_data():
         data_df.set(pd.DataFrame())
 
 # ----------------------------------------------------
-# 3. 視覺化組件 (已修正 Leafmap 點位添加方法)
+# 3. 視覺化組件 (已修正 Leafmap add_geojson 傳參錯誤)
 # ----------------------------------------------------
 
 @solara.component
@@ -89,9 +89,12 @@ def CityMap(df: pd.DataFrame):
     if 'latitude' not in df.columns or 'longitude' not in df.columns or 'name' not in df.columns:
         return solara.Warning("DataFrame 缺少必要的 'latitude', 'longitude' 或 'name' 欄位。")
 
-    # 使用數據的平均經緯度作為地圖中心
-    # 這裡使用第一行的經緯度作為中心，如果數據少會更準確
-    center = [df['latitude'].iloc[0], df['longitude'].iloc[0]]
+    # 使用數據的第一行作為地圖中心
+    if not df.empty:
+        center = [df['latitude'].iloc[0], df['longitude'].iloc[0]]
+    else:
+        # 預設中心 (例如：紐約)
+        center = [40.7, -74.0]
     
     m = leafmap.Map(
         center=center, 
@@ -106,26 +109,28 @@ def CityMap(df: pd.DataFrame):
     m.add_basemap("Esri.WorldImagery", before_id=m.first_symbol_layer_id, visible=False)
     m.add_draw_control(controls=["polygon", "trash"])
 
-    # === 關鍵修正：改用 Leafmap 內建的 add_geojson 方法或循環添加 markers ===
-    
-    # 為了兼容性，我們將 DataFrame 轉換為 GeoJSON 格式並添加
-    # 這是 Leafmap 推薦處理 GeoPandas 不在環境中時的點數據方法
-    
-    import json
+    # === 數據轉換為 GeoJSON 字典 ===
     
     features = []
     for index, row in df.iterrows():
+        # 確保人口是整數 (如果需要顯示)
+        try:
+            population = int(row["population"])
+        except ValueError:
+            population = None
+            
         # 創建 GeoJSON 點物件
         feature = {
             "type": "Feature",
             "geometry": {
                 "type": "Point",
-                "coordinates": [row["longitude"], row["latitude"]] # Leafmap/GeoJSON 使用 [lon, lat] 順序
+                # Leafmap/GeoJSON 使用 [lon, lat] 順序
+                "coordinates": [row["longitude"], row["latitude"]] 
             },
             "properties": {
                 "name": row["name"],
                 "country": row["country"],
-                "population": int(row["population"])
+                "population": population
             }
         }
         features.append(feature)
@@ -135,9 +140,9 @@ def CityMap(df: pd.DataFrame):
         "features": features
     }
 
-    # 使用 Leafmap 的 add_geojson 方法
+    # === 關鍵修正：直接傳遞 Python 字典 (geojson) ===
     m.add_geojson(
-        json.dumps(geojson),
+        geojson, # <-- 直接傳入字典物件，不再使用 json.dumps()
         layer_name="Cities",
         marker_color="red",
         marker_size=8,
