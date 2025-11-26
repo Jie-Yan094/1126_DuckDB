@@ -10,18 +10,15 @@ CITIES_CSV_URL = 'https://data.gishub.org/duckdb/cities.csv'
 # -----------------
 # 1. 狀態管理 (Reactive Variables)
 # -----------------
-# 用於儲存所有國家/地區的清單
 all_countries = solara.reactive([])
-# 儲存使用者在下拉選單中選擇的國家/地區代碼
 selected_country = solara.reactive("") 
-# 儲存篩選後的城市數據
 data_df = solara.reactive(pd.DataFrame()) 
 
 # ----------------------------------------------------
-# 2. 數據獲取邏輯 (修正裝飾器結構)
+# 2. 數據獲取邏輯 (改用函數調用形式，避免裝飾器問題)
 # ----------------------------------------------------
 
-@solara.use_effect(dependencies=[])
+# A. 載入所有國家清單 (只在應用程式啟動時執行一次)
 def load_country_list():
     """初始化：從 CSV 載入所有不重複的國家代碼。"""
     print("Loading country list...")
@@ -48,8 +45,7 @@ def load_country_list():
     except Exception as e:
         print(f"Error loading countries: {e}")
 
-# B. 根據選中的國家篩選城市數據 (單行裝飾器修正)
-@solara.use_effect(dependencies=[selected_country.value])
+# B. 根據選中的國家篩選城市數據
 def load_filtered_data():
     """當 selected_country 變數改變時，重新執行 DuckDB 查詢。"""
     country_name = selected_country.value
@@ -125,6 +121,10 @@ def Page():
     
     solara.Title("城市地理人口分析 (DuckDB + Solara + Leafmap)")
     
+    # 手動調用 use_effect 函數
+    solara.use_effect(load_country_list, dependencies=[])
+    solara.use_effect(load_filtered_data, dependencies=[selected_country.value])
+
     with solara.Card(title="城市數據篩選器"):
         solara.Select(
             label="選擇國家代碼",
@@ -156,7 +156,6 @@ def Page():
         )
         fig.update_layout(xaxis_tickangle=-45)
         solara.FigurePlotly(fig)
-
 
     elif selected_country.value:
          solara.Info(f"正在載入 {selected_country.value} 的數據...")
