@@ -4,34 +4,18 @@ import pandas as pd
 import plotly.express as px 
 import leafmap.maplibregl as leafmap 
 
-# 檔案路徑 (使用遠端 URL，需要 DuckDB 的 httpfs 擴展)
 CITIES_CSV_URL = 'https://data.gishub.org/duckdb/cities.csv'
-
-# -----------------
-# 1. 狀態管理 (Reactive Variables)
-# -----------------
-# 用於儲存所有國家/地區的清單 (例如: ['USA', 'CHN', ...])
 all_countries = solara.reactive([])
-# 儲存使用者在下拉選單中選擇的國家/地區代碼 (例如: 'USA')
 selected_country = solara.reactive("") 
-# 儲存篩選後的城市數據
 data_df = solara.reactive(pd.DataFrame()) 
 
-# ----------------------------------------------------
-# 2. 數據獲取邏輯 (使用 Solara's use_effect 實現響應式)
-# ----------------------------------------------------
-
-# A. 載入所有國家清單 (只在應用程式啟動時執行一次)
 @solara.use_effect(dependencies=[])
 def load_country_list():
     """初始化：從 CSV 載入所有不重複的國家代碼。"""
     try:
         con = duckdb.connect()
-        # 必須載入 httpfs 擴展才能讀取遠端檔案
         con.install_extension("httpfs")
         con.load_extension("httpfs")
-        
-        # 查詢所有不重複的國家代碼
         result = con.sql(f"""
             SELECT DISTINCT country 
             FROM '{CITIES_CSV_URL}'
@@ -63,8 +47,6 @@ def load_filtered_data():
         con = duckdb.connect()
         con.install_extension("httpfs")
         con.load_extension("httpfs")
-        
-        # 查詢需要的欄位: name, country, population, latitude, longitude
         sql_query = f"""
         SELECT name, country, population, latitude, longitude
         FROM '{CITIES_CSV_URL}'
@@ -122,10 +104,6 @@ def CityMap(df: pd.DataFrame):
     )
 
     return m.to_solara()
-
-# ----------------------------------------------------
-# 4. 頁面佈局組件
-# ----------------------------------------------------
 
 @solara.component
 def Page():
