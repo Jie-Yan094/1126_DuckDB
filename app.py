@@ -75,7 +75,7 @@ def load_filtered_data():
         data_df.set(pd.DataFrame())
 
 # ----------------------------------------------------
-# 3. 視覺化組件
+# 3. 視覺化組件 (已修正 Leafmap 點位添加方法)
 # ----------------------------------------------------
 
 @solara.component
@@ -85,7 +85,13 @@ def CityMap(df: pd.DataFrame):
     if df.empty:
         return solara.Info("沒有城市數據可供地圖顯示。")
 
-    center = [df['latitude'].mean(), df['longitude'].mean()]
+    # 確保有必要的欄位
+    if 'latitude' not in df.columns or 'longitude' not in df.columns or 'name' not in df.columns:
+        return solara.Warning("DataFrame 缺少必要的 'latitude', 'longitude' 或 'name' 欄位。")
+
+    # 使用數據的平均經緯度作為地圖中心
+    # 這裡使用第一行的經緯度作為中心，如果數據少會更準確
+    center = [df['latitude'].iloc[0], df['longitude'].iloc[0]]
     
     m = leafmap.Map(
         center=center, 
@@ -100,14 +106,43 @@ def CityMap(df: pd.DataFrame):
     m.add_basemap("Esri.WorldImagery", before_id=m.first_symbol_layer_id, visible=False)
     m.add_draw_control(controls=["polygon", "trash"])
 
-    m.add_points_from_xy(
-        df,
-        x="longitude",
-        y="latitude",
-        tooltip="name", 
-        popup=["name", "population"], 
-        color="red",
-        size=8
+    # === 關鍵修正：改用 Leafmap 內建的 add_geojson 方法或循環添加 markers ===
+    
+    # 為了兼容性，我們將 DataFrame 轉換為 GeoJSON 格式並添加
+    # 這是 Leafmap 推薦處理 GeoPandas 不在環境中時的點數據方法
+    
+    import json
+    
+    features = []
+    for index, row in df.iterrows():
+        # 創建 GeoJSON 點物件
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [row["longitude"], row["latitude"]] # Leafmap/GeoJSON 使用 [lon, lat] 順序
+            },
+            "properties": {
+                "name": row["name"],
+                "country": row["country"],
+                "population": int(row["population"])
+            }
+        }
+        features.append(feature)
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features
+    }
+
+    # 使用 Leafmap 的 add_geojson 方法
+    m.add_geojson(
+        json.dumps(geojson),
+        layer_name="Cities",
+        marker_color="red",
+        marker_size=8,
+        # 設置彈出視窗內容
+        popup={"fields": ["name", "country", "population"], "aliases": ["City", "Country", "Population"]}
     )
 
     return m.to_solara()
